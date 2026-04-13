@@ -1,0 +1,30 @@
+name: Build and Export Slim Flutter Image
+
+# This allows you to trigger the build manually with a button
+on:
+  workflow_dispatch: 
+
+jobs:
+  build-and-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build the Docker Image
+        run: docker build -t flutter-slim .
+
+      - name: Compress Image to Tarball
+        # We compress it heavily to make your download much faster
+        run: docker save flutter-slim | gzip > flutter-slim.tar.gz
+
+      - name: Check File Size
+        # This will print the final size in the GitHub logs so you know what to expect
+        run: ls -lh flutter-slim.tar.gz
+
+      - name: Upload Artifact (The Download Link)
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-flutter-image
+          path: flutter-slim.tar.gz
+          retention-days: 1 # Deletes from GitHub after 1 day to keep your account clean!
