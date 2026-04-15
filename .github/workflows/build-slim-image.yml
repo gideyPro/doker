@@ -1,8 +1,7 @@
-name: Build and Export Slim Flutter Image
+name: Export Offline Docker Image
 
-# This allows you to trigger the build manually with a button
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build-and-export:
@@ -11,20 +10,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build the Docker Image
-        run: docker build -t flutter-slim .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Compress Image to Tarball
-        # We compress it heavily to make your download much faster
-        run: docker save flutter-slim | gzip > flutter-slim.tar.gz
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true # This ensures the image is available in the local docker daemon
+          tags: flutter-offline:latest
+          # Use cache-from/cache-to to speed up future builds if needed
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Check File Size
-        # This will print the final size in the GitHub logs so you know what to expect
-        run: ls -lh flutter-slim.tar.gz
+      - name: Save and Compress Image
+        run: |
+          echo "Exporting and compressing image... this may take a few minutes."
+          docker save flutter-offline:latest | gzip > flutter-offline.tar.gz
 
-      - name: Upload Artifact (The Download Link)
+      - name: Upload Image Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: offline-flutter-image
-          path: flutter-slim.tar.gz
-          retention-days: 1 # Deletes from GitHub after 1 day to keep your account clean!
+          name: flutter-offline-image
+          path: flutter-offline.tar.gz
+          retention-days: 7
+          compression-level: 0 # Already compressed via gzip
