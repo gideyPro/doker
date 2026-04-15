@@ -1,29 +1,50 @@
-# Use the slim Linux base
-FROM debian:bookworm-slim
+# --- STAGE 1: The Builder ---
+FROM ubuntu:22.04 AS builder
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV ANDROID_HOME="/opt/android-sdk" \
+    FLUTTER_HOME="/opt/flutter" \
+    PATH="$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/flutter/bin"
 
-# 1. Install bare minimum tools
 RUN apt-get update && apt-get install -y \
-    curl git unzip xz-utils openjdk-17-jdk-headless \
+    curl git unzip xz-utils zip libglu1-mesa openjdk-17-jdk wget \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Setup Android CMD-Line Tools
-ENV ANDROID_SDK_ROOT=/opt/android-sdk
-RUN mkdir -p $ANDROID_SDK_ROOT/cmdline-tools && \
-    curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
-    unzip cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools && \
-    mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest && \
-    rm cmdline-tools.zip
+# Install Android SDK & Flutter (same as before)
+RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O android-tools.zip && \
+    unzip -q android-tools.zip -d ${ANDROID_HOME}/cmdline-tools && \
+    mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
+    rm android-tools.zip && \
+    yes | sdkmanager --licenses && \
+    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-# 3. Setup Flutter (Only the stable branch, no history)
-ENV FLUTTER_HOME=/opt/flutter
-RUN git clone --depth 1 --branch stable https://github.com/flutter/flutter.git $FLUTTER_HOME
+RUN wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.27.0-stable.tar.xz -O flutter.tar.xz && \
+    tar xf flutter.tar.xz -C /opt && rm flutter.tar.xz
 
-# 4. Set Paths
-ENV PATH="$PATH:$FLUTTER_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools"
+# Populate caches
+WORKDIR /build-temp
+RUN git clone https://github.com/gmanpro/wavemart-app.git . && \
+    flutter pub get && \
+    flutter build apk --release
 
-# 5. Accept Android Licenses
-RUN yes | sdkmanager --licenses
+# --- STAGE 2: The Final Slim Image ---
+FROM ubuntu:22.04
+
+ENV ANDROID_HOME="/opt/android-sdk" \
+    FLUTTER_HOME="/opt/flutter" \
+    PATH="$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/flutter/bin"
+
+# Install only runtime essentials
+RUN apt-get update && apt-get install -y \
+    curl git unzip xz-utils zip libglu1-mesa openjdk-17-jdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy SDKs from builder
+COPY --from=builder /opt/android-sdk /opt/android-sdk
+COPY --from=builder /opt/flutter /opt/flutter
+
+# Copy ONLY the caches from builder (No source code)
+COPY --from=builder /root/.pub-cache /root/.pub-cache
+COPY --from=builder /root/.gradle /root/.gradle
 
 WORKDIR /app
