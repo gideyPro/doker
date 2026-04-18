@@ -17,21 +17,19 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          load: true # This ensures the image is available in the local docker daemon
-          tags: flutter-offline:latest
-          # Use cache-from/cache-to to speed up future builds if needed
+          load: true 
+          tags: wavemart-offline:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Save and Compress Image
         run: |
-          echo "Exporting and compressing image... this may take a few minutes."
-          docker save flutter-offline:latest | gzip > flutter-offline.tar.gz
+          echo "Compressing image... this may take several minutes."
+          docker save wavemart-offline:latest | gzip > wavemart-offline.tar.gz
 
       - name: Upload Image Artifact
         uses: actions/upload-artifact@v4
         with:
           name: flutter-offline-image
-          path: flutter-offline.tar.gz
+          path: wavemart-offline.tar.gz
           retention-days: 7
-          compression-level: 0 # Already compressed via gzip
