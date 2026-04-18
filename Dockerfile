@@ -18,18 +18,17 @@ RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
     yes | sdkmanager --licenses && \
     sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-# Install Flutter 3.27.0
-RUN wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.27.0-stable.tar.xz -O flutter.tar.xz && \
+# Install Flutter 3.38.0 (Updated to match your workflow)
+RUN wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.38.0-stable.tar.xz -O flutter.tar.xz && \
     tar xf flutter.tar.xz -C /opt && rm flutter.tar.xz
 
-# --- FIX: Mark directories as safe for Git ---
+# Fix ownership issues before running Flutter commands
 RUN git config --global --add safe.directory /opt/flutter && \
     git config --global --add safe.directory /build-temp
 
 WORKDIR /build-temp
 
-# Clone and populate caches
-# We use --no-analytics to keep the logs clean
+# Clone and populate all Gradle/Pub caches
 RUN git clone https://github.com/gmanpro/wavemart-app.git . && \
     flutter config --no-analytics && \
     flutter pub get && \
@@ -51,7 +50,7 @@ COPY --from=builder /opt/flutter /opt/flutter
 COPY --from=builder /root/.pub-cache /root/.pub-cache
 COPY --from=builder /root/.gradle /root/.gradle
 
-# Mark Flutter as safe in the final image too
+# Ensure the final image also trusts the Flutter directory
 RUN git config --global --add safe.directory /opt/flutter
 
 WORKDIR /app
